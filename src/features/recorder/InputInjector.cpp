@@ -472,12 +472,6 @@ bool ApplyUsercmdInjections(int slot, PlayerCommand* pc, CBaseUserCmdPB* base)
     pressed = (pressed & ~releasedMask) | pressedMask;
     released = (released & ~pressedMask) | releasedMask;
 
-    {
-        std::ostringstream out;
-        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
-            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
-        Diag(out.str());
-    }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
     buttons->set_buttonstate1(held);
     buttons->set_buttonstate2(pressed);
@@ -524,12 +518,6 @@ bool ApplyUsercmdSuppressions(int slot, PlayerCommand* pc, CBaseUserCmdPB* base)
     uint64_t pressed = pc->buttonstates.m_pButtonStates[1] & ~suppressedMask;
     uint64_t released = pc->buttonstates.m_pButtonStates[2] | releasedMask;
 
-    {
-        std::ostringstream out;
-        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
-            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
-        Diag(out.str());
-    }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
     buttons->set_buttonstate1(held);
     buttons->set_buttonstate2(pressed);
