@@ -26,7 +26,10 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <vector> // NOLINT(misc-include-cleaner)
 
@@ -70,6 +73,37 @@ bool g_physicsActive = false;
 // True once PlayerRunCommand is hooked
 bool g_subtickActive = false;
 std::string g_status = "not_attempted"; // NOLINT(bugprone-throwing-static-initialization)
+
+// Diagnostic-only JSONL log. Disabled by default unless BC_DIAG_PATH is set.
+int64_t MonotonicMilliseconds();
+std::mutex g_diagMutex;
+std::ofstream g_diag;
+std::atomic<size_t> g_diagLines{ 0 };
+thread_local uint64_t g_diagCommandSeq = 0;
+constexpr size_t kDiagMaxLines = 20000;
+
+void Diag(const std::string& line)
+{
+    const char* path = std::getenv("BC_DIAG_PATH");
+    if (path == nullptr || *path == '\0') return;
+    std::scoped_lock lock(g_diagMutex);
+    if (!g_diag.is_open())
+    {
+        g_diag.open(path, std::ios::out | std::ios::trunc);
+        if (!g_diag) return;
+    }
+    if (g_diagLines.load(std::memory_order_relaxed) >= kDiagMaxLines) return;
+    g_diag << line << '\n';
+    if (++g_diagLines % 32 == 0) g_diag.flush();
+}
+
+std::string DiagPrefix(const char* event, int slot, uint64_t seq)
+{
+    std::ostringstream out;
+    out << "{\"event\":\"" << event << "\",\"seq\":" << seq << ",\"slot\":" << slot
+        << ",\"t_ms\":" << MonotonicMilliseconds();
+    return out.str();
+}
 
 // slot -> live CCSPlayer_MovementServices*
 std::array<std::atomic<void*>, kMaxSlots> g_slotServices{};
@@ -317,16 +351,30 @@ UsercmdWork GetUsercmdWork(int slot)
 // Replaces Bot AI analog movement after the final command is generated
 bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // NOLINT(readability-non-const-parameter)
 {
-    if (!ValidSlotIndex(slot) || pc == nullptr || base == nullptr) return false;
+    if (!ValidSlotIndex(slot) || pc == nullptr || base == nullptr)
+    {
+        Diag(DiagPrefix("apply_invalid", slot, g_diagCommandSeq) + "}");
+        return false;
+    }
 
     UsercmdMovement movement{};
     uint64_t previousMask = 0;
     {
         std::scoped_lock lock(g_usercmdInjectionMutex);
         const auto& movements = g_usercmdMovements[slot];
-        if (movements.empty()) return false;
+        if (movements.empty())
+        {
+            Diag(DiagPrefix("lookup_miss", slot, g_diagCommandSeq) + "}");
+            return false;
+        }
         movement = movements.back();
         previousMask = g_movementHeldMasks[slot];
+    }
+    {
+        std::ostringstream out;
+        out << DiagPrefix("lookup_hit", slot, g_diagCommandSeq) << ",\"movement_id\":" << movement.id
+            << ",\"req_forward\":" << movement.forwardMove << ",\"req_left\":" << movement.leftMove << "}";
+        Diag(out.str());
     }
 
     uint64_t movementMask = 0;
@@ -348,6 +396,12 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
     uint64_t pressed = (pc->buttonstates.m_pButtonStates[1] & ~kMovementButtonMask) | pressedMask;
     uint64_t released = (pc->buttonstates.m_pButtonStates[2] & ~movementMask) | releasedMask;
 
+    {
+        std::ostringstream out;
+        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
+            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
+        Diag(out.str());
+    }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
     buttons->set_buttonstate1(held);
     buttons->set_buttonstate2(pressed);
@@ -363,6 +417,13 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
         CSubtickMoveStep* step = base->mutable_subtick_moves(index);
         step->set_analog_forward_delta(0.0F);
         step->set_analog_left_delta(0.0F);
+    }
+    {
+        std::ostringstream out;
+        out << DiagPrefix("apply_post", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
+            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0]
+            << ","return":true}";
+        Diag(out.str());
     }
     return true;
 }
@@ -411,6 +472,12 @@ bool ApplyUsercmdInjections(int slot, PlayerCommand* pc, CBaseUserCmdPB* base)
     pressed = (pressed & ~releasedMask) | pressedMask;
     released = (released & ~pressedMask) | releasedMask;
 
+    {
+        std::ostringstream out;
+        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
+            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
+        Diag(out.str());
+    }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
     buttons->set_buttonstate1(held);
     buttons->set_buttonstate2(pressed);
@@ -457,6 +524,12 @@ bool ApplyUsercmdSuppressions(int slot, PlayerCommand* pc, CBaseUserCmdPB* base)
     uint64_t pressed = pc->buttonstates.m_pButtonStates[1] & ~suppressedMask;
     uint64_t released = pc->buttonstates.m_pButtonStates[2] | releasedMask;
 
+    {
+        std::ostringstream out;
+        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
+            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
+        Diag(out.str());
+    }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
     buttons->set_buttonstate1(held);
     buttons->set_buttonstate2(pressed);
@@ -686,6 +759,18 @@ KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
         // Compiler computes the multiple-inheritance adjust here.
         auto* pc = reinterpret_cast<PlayerCommand*>(cmd);
         CBaseUserCmdPB* base = pc->mutable_base();
+        g_diagCommandSeq++;
+        if (hasUsercmdMovement && !replaying)
+        {
+            std::ostringstream out;
+            out << DiagPrefix("pre", slot, g_diagCommandSeq) << ","services":"" << services
+                << "","pc":"" << static_cast<void*>(pc) << "","base":"" << static_cast<void*>(base)
+                << "","forward":" << (base->has_forwardmove() ? base->forwardmove() : 0.0F)
+                << ","left":" << (base->has_leftmove() ? base->leftmove() : 0.0F)
+                << ","button0":" << pc->buttonstates.m_pButtonStates[0]
+                << ","subtick":" << base->subtick_moves_size() << "}";
+            Diag(out.str());
+        }
 
         if (recording) CaptureUserCommand(slot, services, pc, base);
 
