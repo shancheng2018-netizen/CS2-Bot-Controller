@@ -25,13 +25,13 @@ env:
   # Native SDK sources. Pin refs to exact commits if your local checkouts
   # diverge from upstream HEAD (recommended for reproducible builds).
   HL2SDK_REPO: alliedmodders/s2sdk
-  HL2SDK_REF: cs2
+  HL2SDK_REF: 873e4a4f277f9d9298edd2f37280b91053a5e12b
   MMSOURCE_REPO: alliedmodders/metamod-source
-  MMSOURCE_REF: master
+  MMSOURCE_REF: 170058a2f0dbd58106b7c76bfe88a94672295356
   # CSGO_PROTO source — must contain the CS2 network protos
   # (source2_steam_stats.proto, valveextensions.proto, ...).
   PROTOBUFS_REPO: SteamDatabase/Protobufs
-  PROTOBUFS_REF: master
+  PROTOBUFS_REF: 89b77382edac5f747bfc196c2edf8996a7fe92bc
   PROTOBUFS_SUBDIR: csgo
 
 jobs:

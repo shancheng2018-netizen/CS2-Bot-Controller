@@ -150,6 +150,9 @@ std::atomic<uint64_t> g_usercmdWorkSlots{ 0 };
 std::atomic<int64_t> g_nextUsercmdInjectionId{ 1 };
 std::atomic<int64_t> g_nextUsercmdSuppressionId{ 1 };
 std::atomic<int64_t> g_nextUsercmdMovementId{ 1 };
+struct CommandView { float pitch = 0; float yaw = 0; bool enabled = false; };
+std::array<CommandView, kMaxSlots> g_commandViews{};
+std::atomic<uint64_t> g_commandViewSlots{ 0 };
 
 bool IsThrowableUtilityDef(int def) { return def >= 43 && def <= 48; }
 
@@ -202,6 +205,18 @@ int64_t InjectUsercmd(int slot, uint64_t buttonMask, int durationMs)
 }
 
 // Creates an independently cancellable persistent analog movement override
+bool SetCommandView(int slot, float pitch, float yaw, bool enabled)
+{
+    if (!ValidSlotIndex(slot) || !std::isfinite(pitch) || !std::isfinite(yaw) ||
+        (enabled && (!g_subtickActive || pitch < -89.0F || pitch > 89.0F))) return false;
+    std::scoped_lock lock(g_usercmdInjectionMutex);
+    g_commandViews[slot] = { pitch, NormalizeDeg(yaw), enabled };
+    const uint64_t bit = uint64_t{1} << slot;
+    if (enabled) g_commandViewSlots.fetch_or(bit, std::memory_order_release);
+    else g_commandViewSlots.fetch_and(~bit, std::memory_order_release);
+    return true;
+}
+
 int64_t StartUsercmdMovement(int slot, float forwardMove, float leftMove)
 {
     if (!ValidSlotIndex(slot) || !std::isfinite(forwardMove) || !std::isfinite(leftMove) || !g_subtickActive ||
@@ -741,15 +756,18 @@ void ApplyReplayUserCommand(int slot, void* services, PlayerCommand* pc, CBaseUs
 // Records or injects the user command before native simulation.
 KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
 {
-    if (!motion_recorder::HasAnyRecording() && !motion_recorder::HasAnyReplay() && g_usercmdWorkSlots.load(std::memory_order_acquire) == 0)
+    if (!motion_recorder::HasAnyRecording() && !motion_recorder::HasAnyReplay() &&
+        g_usercmdWorkSlots.load(std::memory_order_acquire) == 0 && g_commandViewSlots.load(std::memory_order_acquire) == 0)
         return { KHook::Action::Ignore };
     int slot = pawn_binding::ServicesToSlot(services);
     auto* boundary = FindPhysicsFrame(slot);
     bool recording = boundary && boundary->recording && motion_recorder::IsRecording(slot);
     bool replaying = boundary && boundary->replaying && motion_recorder::IsReplaying(slot);
     const auto [hasUsercmdInjection, hasUsercmdSuppression, hasUsercmdMovement] = replaying ? UsercmdWork{} : GetUsercmdWork(slot);
+    const bool hasView = ValidSlotIndex(slot) && !replaying &&
+        (g_commandViewSlots.load(std::memory_order_acquire) & (uint64_t{1} << slot)) != 0;
 
-    if (cmd && (recording || replaying || hasUsercmdInjection || hasUsercmdSuppression || hasUsercmdMovement))
+    if (cmd && (recording || replaying || hasUsercmdInjection || hasUsercmdSuppression || hasUsercmdMovement || hasView))
     {
         // Compiler computes the multiple-inheritance adjust here.
         auto* pc = reinterpret_cast<PlayerCommand*>(cmd);
@@ -777,6 +795,28 @@ KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
         if (hasUsercmdSuppression && !replaying) ApplyUsercmdSuppressions(slot, pc, base);
         if (hasUsercmdInjection && !replaying) ApplyUsercmdInjections(slot, pc, base);
         if (hasUsercmdMovement && !replaying) ApplyUsercmdMovement(slot, pc, base);
+        if (hasView)
+        {
+            CommandView value;
+            {
+                std::scoped_lock lock(g_usercmdInjectionMutex);
+                value = g_commandViews[slot];
+            }
+            if (value.enabled)
+            {
+                auto* view = base->mutable_viewangles();
+                view->set_x(value.pitch); view->set_y(value.yaw); view->set_z(0.0F);
+                for (int i = 0; i < base->subtick_moves_size(); ++i)
+                {
+                    auto* step = base->mutable_subtick_moves(i);
+                    step->set_pitch_delta(0.0F); step->set_yaw_delta(0.0F);
+                }
+                std::ostringstream out;
+                out << DiagPrefix("view_post", slot, g_diagCommandSeq)
+                    << ",\"pitch\":" << view->x() << ",\"yaw\":" << view->y() << "}";
+                Diag(out.str());
+            }
+        }
     }
 
     return { KHook::Action::Ignore };
@@ -962,6 +1002,8 @@ void Remove()
         g_injectedHeldMasks.fill(0);
         g_movementHeldMasks.fill(0);
         g_usercmdWorkSlots.store(0, std::memory_order_release);
+        g_commandViews.fill(CommandView{});
+        g_commandViewSlots.store(0, std::memory_order_release);
     }
     g_installed = false;
     g_status = "not_attempted";

@@ -18,6 +18,11 @@
 #define BC_EXPORT __attribute__((visibility("default")))
 #endif
 
+extern "C" BC_EXPORT int BotController_SetCommandView(int slot, float pitch, float yaw, int enabled)
+{
+    return cs2bc::input_injector::SetCommandView(slot, pitch, yaw, enabled != 0) ? 0 : -1;
+}
+
 extern "C" BC_EXPORT int BotController_Lock(int slot, int kind, int arg)
 {
     return cs2bc::dispatch::Lock(slot, static_cast<cs2bc::LockKind>(kind), arg);

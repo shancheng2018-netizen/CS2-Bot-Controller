@@ -51,6 +51,9 @@ bool UpdateUsercmdMovement(int slot, int64_t movementId, float forwardMove, floa
 // Cancels one persistent analog movement override
 bool CancelUsercmdMovement(int slot, int64_t movementId);
 
+// Diagnostic, versioned command-angle override. Does not write pawn transforms.
+bool SetCommandView(int slot, float pitch, float yaw, bool enabled);
+
 // Suppresses selected usercmd buttons for a fixed duration
 bool SuppressUsercmd(int slot, uint64_t buttonMask, int durationMs);
 
