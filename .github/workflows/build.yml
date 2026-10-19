@@ -134,8 +134,11 @@ jobs:
           Copy-Item build/package/addons/BotController/bin/win64/BotController.dll baseline/BotController.dll
           Copy-Item src/features/recorder/InputInjector.cpp baseline/InputInjector.cpp
           Copy-Item "$env:RUNNER_TEMP/InputInjector.fixed.cpp" src/features/recorder/InputInjector.cpp
-          cmake --build build --config Release
+          cmake --build build --config Release --clean-first
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash baseline/BotController.dll).Hash -eq (Get-FileHash build/package/addons/BotController/bin/win64/BotController.dll).Hash) {
+            throw "Baseline and fixed binaries are identical; refusing an invalid paired build"
+          }
 
       - name: Upload paired baseline
         uses: actions/upload-artifact@v7
