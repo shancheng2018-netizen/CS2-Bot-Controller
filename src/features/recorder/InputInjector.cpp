@@ -417,6 +417,8 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
     for (int index = 0; index < base->subtick_moves_size(); ++index)
     {
         CSubtickMoveStep* step = base->mutable_subtick_moves(index);
+        step->set_button(0);
+        step->set_pressed(0.0F);
         step->set_analog_forward_delta(0.0F);
         step->set_analog_left_delta(0.0F);
     }
