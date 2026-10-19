@@ -413,6 +413,7 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
 
     base->set_forwardmove(movement.forwardMove * kUsercmdKeyboardMoveScale);
     base->set_leftmove(movement.leftMove * kUsercmdKeyboardMoveScale);
+    base->set_upmove(0.0F);
     for (int index = 0; index < base->subtick_moves_size(); ++index)
     {
         CSubtickMoveStep* step = base->mutable_subtick_moves(index);
