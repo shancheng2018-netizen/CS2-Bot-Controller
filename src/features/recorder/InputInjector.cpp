@@ -399,7 +399,8 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
     {
         std::ostringstream out;
         out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ",\"forward\":" << base->forwardmove()
-            << ",\"left\":" << base->leftmove() << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0] << "}";
+            << ",\"left\":" << base->leftmove() << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0]
+            << ",\"upmove\":" << (base->has_upmove() ? base->upmove() : 0.0F) << "}";
         Diag(out.str());
     }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
@@ -422,6 +423,9 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
         std::ostringstream out;
         out << DiagPrefix("apply_post", slot, g_diagCommandSeq) << ",\"forward\":" << base->forwardmove()
             << ",\"left\":" << base->leftmove() << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0]
+            << ",\"button1\":" << pc->buttonstates.m_pButtonStates[1]
+            << ",\"button2\":" << pc->buttonstates.m_pButtonStates[2]
+            << ",\"upmove\":" << (base->has_upmove() ? base->upmove() : 0.0F)
             << ",\"return\":true}";
         Diag(out.str());
     }
@@ -756,6 +760,9 @@ KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
                 << "\",\"forward\":" << (base->has_forwardmove() ? base->forwardmove() : 0.0F)
                 << ",\"left\":" << (base->has_leftmove() ? base->leftmove() : 0.0F)
                 << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0]
+                << ",\"button1\":" << pc->buttonstates.m_pButtonStates[1]
+                << ",\"button2\":" << pc->buttonstates.m_pButtonStates[2]
+                << ",\"upmove\":" << (base->has_upmove() ? base->upmove() : 0.0F)
                 << ",\"subtick\":" << base->subtick_moves_size() << "}";
             Diag(out.str());
         }
