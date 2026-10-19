@@ -25,13 +25,13 @@ env:
   # Native SDK sources. Pin refs to exact commits if your local checkouts
   # diverge from upstream HEAD (recommended for reproducible builds).
   HL2SDK_REPO: alliedmodders/s2sdk
-  HL2SDK_REF: cs2
+  HL2SDK_REF: 873e4a4f277f9d9298edd2f37280b91053a5e12b
   MMSOURCE_REPO: alliedmodders/metamod-source
-  MMSOURCE_REF: master
+  MMSOURCE_REF: 170058a2f0dbd58106b7c76bfe88a94672295356
   # CSGO_PROTO source — must contain the CS2 network protos
   # (source2_steam_stats.proto, valveextensions.proto, ...).
   PROTOBUFS_REPO: SteamDatabase/Protobufs
-  PROTOBUFS_REF: master
+  PROTOBUFS_REF: 89b77382edac5f747bfc196c2edf8996a7fe92bc
   PROTOBUFS_SUBDIR: csgo
 
 jobs:
@@ -84,6 +84,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Checkout s2sdk-cs2
         uses: actions/checkout@v7
@@ -123,8 +125,24 @@ jobs:
           MMSOURCE_DEV: ${{ github.workspace }}/deps/metamod-source
           CSGO_PROTO: ${{ github.workspace }}/deps/protobufs/${{ env.PROTOBUFS_SUBDIR }}
         run: |
+          Copy-Item src/features/recorder/InputInjector.cpp "$env:RUNNER_TEMP/InputInjector.fixed.cpp"
+          git show c1ba371b4ea76649a2cace6fb63b097fb9b88383:src/features/recorder/InputInjector.cpp | Set-Content -Encoding utf8 src/features/recorder/InputInjector.cpp
           cmake -B build -A x64 -S .
           cmake --build build --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force baseline
+          Copy-Item build/package/addons/BotController/bin/win64/BotController.dll baseline/BotController.dll
+          Copy-Item src/features/recorder/InputInjector.cpp baseline/InputInjector.cpp
+          Copy-Item "$env:RUNNER_TEMP/InputInjector.fixed.cpp" src/features/recorder/InputInjector.cpp
+          cmake --build build --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload paired baseline
+        uses: actions/upload-artifact@v7
+        with:
+          name: BotController-p111-paired-baseline
+          path: baseline/
+          if-no-files-found: error
 
       - name: Verify output
         shell: bash

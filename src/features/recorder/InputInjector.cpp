@@ -396,6 +396,13 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
     uint64_t pressed = (pc->buttonstates.m_pButtonStates[1] & ~kMovementButtonMask) | pressedMask;
     uint64_t released = (pc->buttonstates.m_pButtonStates[2] & ~movementMask) | releasedMask;
 
+    // Diagnostic override: p109/p110 cleared upmove and subticks but still
+    // passed the AI's ordinary IN_JUMP state through all three button masks.
+    constexpr uint64_t kInJump = 1ULL << 1;
+    held &= ~kInJump;
+    pressed &= ~kInJump;
+    released &= ~kInJump;
+
     {
         std::ostringstream out;
         out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ",\"forward\":" << base->forwardmove()
