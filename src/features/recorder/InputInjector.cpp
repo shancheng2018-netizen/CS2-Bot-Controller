@@ -398,8 +398,8 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
 
     {
         std::ostringstream out;
-        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
-            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0] << "}";
+        out << DiagPrefix("apply_pre", slot, g_diagCommandSeq) << ",\"forward\":" << base->forwardmove()
+            << ",\"left\":" << base->leftmove() << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0] << "}";
         Diag(out.str());
     }
     CInButtonStatePB* buttons = base->mutable_buttons_pb();
@@ -420,9 +420,9 @@ bool ApplyUsercmdMovement(int slot, PlayerCommand* pc, CBaseUserCmdPB* base) // 
     }
     {
         std::ostringstream out;
-        out << DiagPrefix("apply_post", slot, g_diagCommandSeq) << ","forward":" << base->forwardmove()
-            << ","left":" << base->leftmove() << ","button0":" << pc->buttonstates.m_pButtonStates[0]
-            << ","return":true}";
+        out << DiagPrefix("apply_post", slot, g_diagCommandSeq) << ",\"forward\":" << base->forwardmove()
+            << ",\"left\":" << base->leftmove() << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0]
+            << ",\"return\":true}";
         Diag(out.str());
     }
     return true;
@@ -763,12 +763,12 @@ KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
         if (hasUsercmdMovement && !replaying)
         {
             std::ostringstream out;
-            out << DiagPrefix("pre", slot, g_diagCommandSeq) << ","services":"" << services
-                << "","pc":"" << static_cast<void*>(pc) << "","base":"" << static_cast<void*>(base)
-                << "","forward":" << (base->has_forwardmove() ? base->forwardmove() : 0.0F)
-                << ","left":" << (base->has_leftmove() ? base->leftmove() : 0.0F)
-                << ","button0":" << pc->buttonstates.m_pButtonStates[0]
-                << ","subtick":" << base->subtick_moves_size() << "}";
+            out << DiagPrefix("pre", slot, g_diagCommandSeq) << ",\"services\":\"" << services
+                << "\",\"pc\":\"" << static_cast<void*>(pc) << "\",\"base\":\"" << static_cast<void*>(base)
+                << "\",\"forward\":" << (base->has_forwardmove() ? base->forwardmove() : 0.0F)
+                << ",\"left\":" << (base->has_leftmove() ? base->leftmove() : 0.0F)
+                << ",\"button0\":" << pc->buttonstates.m_pButtonStates[0]
+                << ",\"subtick\":" << base->subtick_moves_size() << "}";
             Diag(out.str());
         }
 
