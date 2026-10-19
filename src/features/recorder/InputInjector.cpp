@@ -817,6 +817,15 @@ KHook::Return<void> HookedPlayerRunCommand(void* services, void* cmd) noexcept
                 Diag(out.str());
             }
         }
+        if (hasUsercmdMovement && !replaying)
+        {
+            nlohmann::json clock;
+            clock["event"] = "command_clock";
+            clock["slot"] = slot;
+            clock["seq"] = g_diagCommandSeq;
+            clock["protobuf"] = pc->ShortDebugString();
+            Diag(clock.dump());
+        }
     }
 
     return { KHook::Action::Ignore };
